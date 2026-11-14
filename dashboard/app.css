@@ -122,6 +122,17 @@ tbody tr[data-selected="true"] { background: rgba(47, 208, 138, 0.10); }
 .chain-row:hover { background: var(--surface-2); }
 .chain-row[data-active="true"] { background: rgba(47, 208, 138, 0.10); }
 .chain-row[data-active="true"] td:first-child b { color: var(--accent); }
+.movers { margin-bottom: var(--step-4); }
+.movers-head { padding: var(--step-4) var(--step-5) var(--step-2); display: grid; gap: var(--step-1); }
+.movers-head p { max-width: 78ch; }
+.movers-cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--step-5); padding: var(--step-2) var(--step-5) var(--step-4); border-top: 1px solid var(--border); }
+.movers-col h3 { margin-bottom: var(--step-2); font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.mover-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--step-1); }
+.mover-row { width: 100%; display: grid; grid-template-columns: 40px 1fr auto auto; gap: var(--step-3); align-items: baseline; padding: var(--step-2) var(--step-3); border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface); color: var(--ink); cursor: pointer; text-align: left; }
+.mover-row:hover { background: var(--surface-2); }
+.mover-rank { font-family: var(--font-num); color: var(--muted); }
+.mover-name { overflow-wrap: anywhere; font-weight: 500; }
+.mover-change { font-family: var(--font-num); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .model { margin-top: var(--step-4); padding: var(--step-5); display: grid; gap: var(--step-3); }
 .formula { font-family: var(--font-num); font-size: 13px; line-height: 1.7; color: var(--muted); overflow-wrap: anywhere; }
