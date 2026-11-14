@@ -486,6 +486,39 @@
     );
   }
 
+  function moversSection() {
+    var movers = DATA.movers || null;
+    if (!movers || (movers.gainers.length === 0 && movers.fallers.length === 0)) return null;
+    function moverRows(list, cls) {
+      return list.map(function (m) {
+        return el('li', null,
+          el('button', { type: 'button', class: 'mover-row ' + cls, onclick: function () { openDetail(m.slug); } },
+            el('span', { class: 'mover-rank', text: '#' + m.rank }),
+            el('span', { class: 'mover-name', text: m.name }),
+            el('span', { class: 'mover-change ' + (m.change_7d_pct >= 0 ? 'pos' : 'neg'), text: fmtPct(m.change_7d_pct) }),
+            el('span', { class: 'mover-implied sub', text: fmtUsd(m.implied_value_usd) + ' implied' })
+          )
+        );
+      });
+    }
+    return el('section', { class: 'panel movers', 'aria-label': 'Top movers over 7 days' },
+      el('div', { class: 'movers-head' },
+        el('h2', { text: 'Top movers, last 7 days' }),
+        el('p', { class: 'sub', text: 'The five steepest rises and the five steepest falls among the ' + movers.measured + ' ranked protocols that carry a 7-day change. A move is a week of prices, not a promise — select a row to open its detail and farm plan.' })
+      ),
+      el('div', { class: 'movers-cols' },
+        el('div', { class: 'movers-col' },
+          el('h3', { text: 'Rising' }),
+          el('ul', { class: 'mover-list' }, moverRows(movers.gainers, 'up'))
+        ),
+        el('div', { class: 'movers-col' },
+          el('h3', { text: 'Falling' }),
+          el('ul', { class: 'mover-list' }, moverRows(movers.fallers, 'down'))
+        )
+      )
+    );
+  }
+
   function render() {
     app.textContent = '';
     var shell = el('div', { class: 'shell' });
@@ -498,6 +531,10 @@
       if (chains) shell.appendChild(chains);
     }
     shell.appendChild(state.tab === 'pre-token' ? boardTable() : liveTable());
+    if (state.tab === 'pre-token') {
+      var movers = moversSection();
+      if (movers) shell.appendChild(movers);
+    }
     if (state.tab === 'pre-token') shell.appendChild(modelPanel());
     shell.appendChild(el('p', { class: 'note' }, el('b', { text: 'Read it honestly: ' }), 'a protocol on this board records no token in DefiLlama, which is not proof it has none. Implied value is this radar\u2019s own claim from the snapshot\u2019s figures, never make.fun\u2019s, and a launch is never promised. Farm with money you can afford to leave in the position.'));
     app.appendChild(shell);
