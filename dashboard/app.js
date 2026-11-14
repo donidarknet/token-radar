@@ -7,7 +7,7 @@
   var DATA = window.RADAR;
   if (!DATA) return;
   var app = document.getElementById('board');
-  var state = { q: '', category: 'all', chain: 'all', watchlistOnly: false, tab: 'pre-token', sort: 'implied', dir: -1, selected: null };
+  var state = { q: '', category: 'all', chain: 'all', watchlistOnly: false, tab: 'pre-token', sort: 'implied', dir: -1, selected: null, chainSort: 'implied', chainDir: -1 };
 
   var usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
   function fmtUsd(n) {
@@ -149,7 +149,12 @@
     var q = state.q.trim().toLowerCase();
     return DATA.rows.filter(function (r) {
       if (state.category !== 'all' && r.category !== state.category) return false;
-      if (state.chain !== 'all' && (r.chains || []).indexOf(state.chain) < 0) return false;
+      if (state.chain !== 'all') {
+        // A chain-less protocol matches only the no-chain label, never a named chain.
+        var listed = r.chains || [];
+        if (listed.length === 0) { if (state.chain !== NO_CHAIN_LABEL) return false; }
+        else if (listed.indexOf(state.chain) < 0) return false;
+      }
       if (state.watchlistOnly && !r.watchlist) return false;
       if (!q) return true;
       var hay = [r.name, r.slug, r.category, (r.chains || []).join(' ')].join(' ').toLowerCase();
@@ -406,6 +411,81 @@
     }
   }
 
+  // The board cut by chain, rendered from the server's aggregates in DATA.chains: one row per
+  // chain, sortable, and a click filters the board to that chain through the same chain filter
+  // the controls offer. Clicking the active chain again clears the filter. A chain-less row
+  // files under the no-chain label, and the filter below matches it by an empty chain list.
+  var NO_CHAIN_LABEL = '(no chain listed)';
+
+  function chainsSorted() {
+    var list = (DATA.chains || []).slice();
+    var key = state.chainSort;
+    list.sort(function (a, b) {
+      var av, bv;
+      if (key === 'name') { av = a.chain.toLowerCase(); bv = b.chain.toLowerCase(); }
+      else if (key === 'protocols') { av = a.protocols; bv = b.protocols; }
+      else if (key === 'tvl') { av = a.total_tvl_usd; bv = b.total_tvl_usd; }
+      else if (key === 'growth') { av = a.median_growth_pct === null ? -Infinity : a.median_growth_pct; bv = b.median_growth_pct === null ? -Infinity : b.median_growth_pct; }
+      else { av = a.total_implied_usd; bv = b.total_implied_usd; }
+      if (av < bv) return -state.chainDir;
+      if (av > bv) return state.chainDir;
+      return a.chain < b.chain ? -1 : a.chain > b.chain ? 1 : 0;
+    });
+    return list;
+  }
+
+  function chainSortHeader(key, label) {
+    return el('th', { scope: 'col' },
+      el('button', { type: 'button', onclick: function () { if (state.chainSort === key) state.chainDir = -state.chainDir; else { state.chainSort = key; state.chainDir = -1; } render(); } },
+        label,
+        state.chainSort === key ? el('span', { 'aria-hidden': 'true', text: state.chainDir < 0 ? ' v' : ' ^' }) : null
+      )
+    );
+  }
+
+  function chainSection() {
+    var chains = chainsSorted();
+    if (chains.length === 0) return null;
+    var tbody = el('tbody');
+    chains.forEach(function (c) {
+      var active = state.chain === c.chain;
+      var tr = el('tr', {
+        class: 'chain-row',
+        'data-active': active ? 'true' : 'false',
+        tabindex: '0',
+        onclick: function () { state.chain = active ? 'all' : c.chain; writeHash(); render(); },
+        onkeydown: function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); state.chain = active ? 'all' : c.chain; writeHash(); render(); } }
+      },
+        el('td', null, el('b', { text: c.chain })),
+        el('td', { class: 'num', text: String(c.protocols) + (c.watchlist_protocols > 0 ? ' (' + c.watchlist_protocols + ' watchlist)' : '') }),
+        el('td', { class: 'num', text: fmtUsd(c.total_tvl_usd) }),
+        el('td', { class: 'num', text: fmtUsd(c.total_implied_usd) }),
+        el('td', { class: 'num ' + (c.median_growth_pct === null ? '' : c.median_growth_pct >= 0 ? 'pos' : 'neg'), text: fmtPct(c.median_growth_pct) }),
+        el('td', null, el('div', { class: 'name' }, el('b', { text: c.top_name }), el('span', { class: 'sub', text: fmtUsd(c.top_implied_usd) + ' implied' })))
+      );
+      tbody.appendChild(tr);
+    });
+    return el('section', { class: 'panel chains', 'aria-label': 'Implied value by chain' },
+      el('div', { class: 'chains-head' },
+        el('h2', { text: 'Implied value by chain' }),
+        el('p', { class: 'sub', text: 'Every protocol counts once, under the first chain it lists, so the chains add up to the board. Select a chain to filter the board to it; select it again to clear the filter.' })
+      ),
+      el('div', { class: 'table-wrap' },
+        el('table', null,
+          el('thead', null, el('tr', null,
+            chainSortHeader('name', 'Chain'),
+            chainSortHeader('protocols', 'Protocols'),
+            chainSortHeader('tvl', 'Total TVL'),
+            chainSortHeader('implied', 'Total implied'),
+            chainSortHeader('growth', 'Median 7d'),
+            el('th', { scope: 'col', text: 'Strongest protocol' })
+          )),
+          tbody
+        )
+      )
+    );
+  }
+
   function render() {
     app.textContent = '';
     var shell = el('div', { class: 'shell' });
@@ -413,6 +493,10 @@
     shell.appendChild(lede());
     shell.appendChild(spotlight());
     shell.appendChild(controls());
+    if (state.tab === 'pre-token') {
+      var chains = chainSection();
+      if (chains) shell.appendChild(chains);
+    }
     shell.appendChild(state.tab === 'pre-token' ? boardTable() : liveTable());
     if (state.tab === 'pre-token') shell.appendChild(modelPanel());
     shell.appendChild(el('p', { class: 'note' }, el('b', { text: 'Read it honestly: ' }), 'a protocol on this board records no token in DefiLlama, which is not proof it has none. Implied value is this radar\u2019s own claim from the snapshot\u2019s figures, never make.fun\u2019s, and a launch is never promised. Farm with money you can afford to leave in the position.'));
