@@ -169,6 +169,8 @@ export interface RadarData {
   live_size: number;
   rows: RadarRow[];
   live: LiveRow[];
+  /** The board cut by chain, strongest chain first: the dashboard's "By chain" section. */
+  chains: ChainRow[];
 }
 
 /** Why the snapshot is not one this model can score. */
@@ -270,6 +272,68 @@ function bySlug(protocols: SnapshotProtocol[]): Map<string, SnapshotProtocol> {
 }
 
 const round4 = (n: number): number => Math.round(n * 1e4) / 1e4;
+
+/** One chain's share of the ranked board. Every protocol counts once, under the first chain it
+ * names, so the chains' totals add up to the board's own total instead of double-counting a
+ * protocol that lists several chains. The strongest protocol on a chain is the first row the
+ * ranked board puts there. */
+export interface ChainRow {
+  chain: string;
+  protocols: number;
+  watchlist_protocols: number;
+  total_tvl_usd: number;
+  total_implied_usd: number;
+  median_growth_pct: number | null;
+  top_slug: string;
+  top_name: string;
+  top_implied_usd: number;
+}
+
+/** The label a chain-less row files under: the snapshot names no chain for it, and the board
+ * still has to put it somewhere the dashboard can point at. */
+export const NO_CHAIN = '(no chain listed)';
+
+/** The middle value of a sorted list, or null when the list is empty. */
+function medianOf(sorted: number[]): number | null {
+  if (sorted.length === 0) return null;
+  return sorted[Math.floor(sorted.length / 2)]!;
+}
+
+/**
+ * The board cut by chain: for each chain with at least one ranked protocol, how many protocols
+ * it carries, how many of them the watchlist names, how much TVL and implied value they hold
+ * together, the middle seven-day growth, and the strongest protocol on it. The board arrives
+ * ranked, so the first row met on a chain is that chain's strongest by implied value. Chains
+ * come out strongest first, ties broken by name so the order never depends on input order.
+ */
+export function chainBreakdown(board: BoardRow[], watchlist: Set<string>): ChainRow[] {
+  const groups = new Map<string, BoardRow[]>();
+  for (const row of board) {
+    const chain = row.chains.length > 0 ? row.chains[0]! : NO_CHAIN;
+    const group = groups.get(chain);
+    if (group === undefined) groups.set(chain, [row]);
+    else group.push(row);
+  }
+  const chains: ChainRow[] = [];
+  for (const [chain, rows] of groups) {
+    const growths = rows.map((r) => r.change_7d).filter((g): g is number => g !== null).sort((a, b) => a - b);
+    const median = medianOf(growths);
+    const top = rows[0]!;
+    chains.push({
+      chain,
+      protocols: rows.length,
+      watchlist_protocols: rows.filter((r) => watchlist.has(r.slug)).length,
+      total_tvl_usd: rows.reduce((n, r) => n + r.tvl_usd, 0),
+      total_implied_usd: rows.reduce((n, r) => n + r.implied_value_usd, 0),
+      median_growth_pct: median === null ? null : Math.round(median * 100) / 100,
+      top_slug: top.slug,
+      top_name: top.name,
+      top_implied_usd: top.implied_value_usd,
+    });
+  }
+  chains.sort((a, b) => b.total_implied_usd - a.total_implied_usd || (a.chain < b.chain ? -1 : a.chain > b.chain ? 1 : 0));
+  return chains;
+}
 
 /** The protocols the board ranks, strongest first, with ranks 1..n. */
 export function buildBoard(snapshot: Snapshot, model: ModelConstants = MODEL): BoardRow[] {
@@ -491,6 +555,7 @@ export function buildRadar(snapshot: Snapshot, model: ModelConstants = MODEL): {
     live_size: live.length,
     rows: board.map((r) => radarRow(r, watchlist)),
     live,
+    chains: chainBreakdown(board, watchlist),
   };
   return { board, radar };
 }
