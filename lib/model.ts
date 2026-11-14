@@ -171,6 +171,8 @@ export interface RadarData {
   live: LiveRow[];
   /** The board cut by chain, strongest chain first: the dashboard's "By chain" section. */
   chains: ChainRow[];
+  /** The board's fastest 7-day movers, gainers and fallers: the dashboard's "Top movers" section. */
+  movers: Movers;
 }
 
 /** Why the snapshot is not one this model can score. */
@@ -306,6 +308,44 @@ function medianOf(sorted: number[]): number | null {
  * ranked, so the first row met on a chain is that chain's strongest by implied value. Chains
  * come out strongest first, ties broken by name so the order never depends on input order.
  */
+/** One protocol's 7-day move, as the dashboard's movers list shows it. */
+export interface MoverRow {
+  slug: string;
+  name: string;
+  rank: number;
+  change_7d_pct: number;
+  implied_value_usd: number;
+}
+
+/** The board's fastest movers over the last 7 days, gainers and fallers side by side. */
+export interface Movers {
+  gainers: MoverRow[];
+  fallers: MoverRow[];
+  /** How many ranked rows carry a 7-day change at all; the lists draw from those. */
+  measured: number;
+}
+
+/**
+ * The five steepest rises and the five steepest falls among the ranked rows that carry a
+ * 7-day change, each with its board rank and implied value so a move can be weighed, not just
+ * admired. Ties break by implied value, then slug, so the lists are deterministic.
+ */
+export function topMovers(board: BoardRow[], count = 5): Movers {
+  const measured = board.filter((r) => r.change_7d !== null);
+  const byMove = (a: MoverRow, b: MoverRow): number =>
+    b.change_7d_pct - a.change_7d_pct || b.implied_value_usd - a.implied_value_usd || (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0);
+  const toRow = (r: BoardRow): MoverRow => ({
+    slug: r.slug,
+    name: r.name,
+    rank: r.rank,
+    change_7d_pct: Math.round((r.change_7d as number) * 100) / 100,
+    implied_value_usd: r.implied_value_usd,
+  });
+  const gainers = measured.map(toRow).sort(byMove).slice(0, count);
+  const fallers = measured.map(toRow).sort((a, b) => byMove(b, a)).slice(0, count);
+  return { gainers, fallers, measured: measured.length };
+}
+
 export function chainBreakdown(board: BoardRow[], watchlist: Set<string>): ChainRow[] {
   const groups = new Map<string, BoardRow[]>();
   for (const row of board) {
@@ -556,6 +596,7 @@ export function buildRadar(snapshot: Snapshot, model: ModelConstants = MODEL): {
     rows: board.map((r) => radarRow(r, watchlist)),
     live,
     chains: chainBreakdown(board, watchlist),
+    movers: topMovers(board),
   };
   return { board, radar };
 }
