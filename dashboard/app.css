@@ -113,6 +113,16 @@ tbody tr[data-selected="true"] { background: rgba(47, 208, 138, 0.10); }
 .status.live::before { background: var(--gold); }
 .badge { display: inline-block; font-family: var(--font-num); font-size: 11px; color: var(--gold); border: 1px solid rgba(242, 193, 78, 0.4); border-radius: 4px; padding: 1px 5px; margin-left: 6px; vertical-align: 1px; }
 
+/* The chain cut: the board's value, one row per chain, strongest first. */
+.chains { margin-bottom: var(--step-4); }
+.chains-head { padding: var(--step-4) var(--step-5) var(--step-2); display: grid; gap: var(--step-1); }
+.chains-head p { max-width: 78ch; }
+.chains .table-wrap { border-top: 1px solid var(--border); }
+.chain-row { cursor: pointer; }
+.chain-row:hover { background: var(--surface-2); }
+.chain-row[data-active="true"] { background: rgba(47, 208, 138, 0.10); }
+.chain-row[data-active="true"] td:first-child b { color: var(--accent); }
+
 .model { margin-top: var(--step-4); padding: var(--step-5); display: grid; gap: var(--step-3); }
 .formula { font-family: var(--font-num); font-size: 13px; line-height: 1.7; color: var(--muted); overflow-wrap: anywhere; }
 .model dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--step-2) var(--step-5); margin: 0; }
